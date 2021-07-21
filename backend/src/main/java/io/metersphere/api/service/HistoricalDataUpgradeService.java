@@ -1,10 +1,12 @@
 package io.metersphere.api.service;
 
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import io.metersphere.api.dto.EnvironmentDTO;
 import io.metersphere.api.dto.SaveHistoricalDataUpgrade;
 import io.metersphere.api.dto.automation.ScenarioStatus;
+import io.metersphere.api.dto.datacount.ApiMethodUrlDTO;
 import io.metersphere.api.dto.definition.request.MsScenario;
 import io.metersphere.api.dto.definition.request.MsTestElement;
 import io.metersphere.api.dto.definition.request.assertions.MsAssertionDuration;
@@ -53,6 +55,10 @@ public class HistoricalDataUpgradeService {
     @Resource
     private ExtApiScenarioMapper extApiScenarioMapper;
     @Resource
+    private ApiAutomationService apiAutomationService;
+    @Resource
+    private ApiScenarioReferenceIdService apiScenarioReferenceIdService;
+    @Resource
     SqlSessionFactory sqlSessionFactory;
     @Resource
     ApiTestEnvironmentService apiTestEnvironmentService;
@@ -60,7 +66,7 @@ public class HistoricalDataUpgradeService {
 
     private int getNextNum(String projectId) {
         ApiScenario apiScenario = extApiScenarioMapper.getNextNum(projectId);
-        if (apiScenario == null) {
+        if (apiScenario == null || apiScenario.getNum() == null) {
             return 100001;
         } else {
             return Optional.of(apiScenario.getNum() + 1).orElse(100001);
@@ -258,6 +264,7 @@ public class HistoricalDataUpgradeService {
                 if (StringUtils.isEmpty(preProcessor.getName())) {
                     preProcessor.setName("JSR223PreProcessor");
                 }
+                preProcessor.setScriptLanguage(request.getJsr223PreProcessor().getLanguage());
                 preProcessor.setType("JSR223PreProcessor");
                 preProcessor.setIndex(index + "");
                 preProcessor.setHashTree(new LinkedList<>());
@@ -271,6 +278,7 @@ public class HistoricalDataUpgradeService {
                 if (StringUtils.isEmpty(preProcessor.getName())) {
                     preProcessor.setName("JSR223PostProcessor");
                 }
+                preProcessor.setScriptLanguage(request.getJsr223PostProcessor().getLanguage());
                 preProcessor.setType("JSR223PostProcessor");
                 preProcessor.setIndex(index + "");
                 preProcessor.setHashTree(new LinkedList<>());
@@ -358,7 +366,10 @@ public class HistoricalDataUpgradeService {
             scenario.setUpdateTime(System.currentTimeMillis());
             scenario.setStatus(ScenarioStatus.Underway.name());
             scenario.setUserId(SessionUtils.getUserId());
+            List<ApiMethodUrlDTO> useUrl = apiAutomationService.parseUrl(scenario);
+            scenario.setUseUrl(JSONArray.toJSONString(useUrl));
             mapper.updateByPrimaryKeySelective(scenario);
+            apiScenarioReferenceIdService.saveByApiScenario(scenario);
         } else {
             scenario = new ApiScenarioWithBLOBs();
             scenario.setId(id);
@@ -376,7 +387,10 @@ public class HistoricalDataUpgradeService {
             scenario.setStatus(ScenarioStatus.Underway.name());
             scenario.setUserId(SessionUtils.getUserId());
             scenario.setNum(num);
+            List<ApiMethodUrlDTO> useUrl = apiAutomationService.parseUrl(scenario);
+            scenario.setUseUrl(JSONArray.toJSONString(useUrl));
             mapper.insert(scenario);
+            apiScenarioReferenceIdService.saveByApiScenario(scenario);
         }
     }
 

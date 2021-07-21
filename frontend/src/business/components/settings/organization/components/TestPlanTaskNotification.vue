@@ -3,7 +3,7 @@
     <el-row>
       <el-col :span="10">
         <h3>{{ $t('organization.message.test_plan_task_notification') }}</h3>
-        <el-button icon="el-icon-circle-plus-outline" plain size="mini" @click="handleAddTaskModel">
+        <el-button icon="el-icon-circle-plus-outline" plain size="mini" @click="handleAddTaskModel" v-permission="['ORGANIZATION_MESSAGE:READ+EDIT']">
           {{ $t('organization.message.create_new_notification') }}
         </el-button>
         <el-popover
@@ -112,6 +112,7 @@
                 size="mini"
                 v-show="!scope.row.isSet"
                 @click="handleEditTask(scope.$index,scope.row)"
+                v-permission="['ORGANIZATION_MESSAGE:READ+EDIT']"
               >{{ $t('commons.edit') }}
               </el-button>
               <el-button
@@ -119,6 +120,7 @@
                 icon="el-icon-delete"
                 size="mini"
                 v-show="!scope.row.isSet"
+                v-permission="['ORGANIZATION_MESSAGE:READ+EDIT']"
                 @click.native.prevent="deleteRowTask(scope.$index,scope.row)"
               ></el-button>
             </template>
@@ -237,14 +239,14 @@ export default {
 
       if (data.event && data.userIds.length > 0 && data.type) {
         // console.log(data.type)
-        if (data.type === 'NAIL_ROBOT' || data.type === 'WECHAT_ROBOT') {
+        if (data.type === 'NAIL_ROBOT' || data.type === 'WECHAT_ROBOT' || data.type === 'LARK') {
           if (!data.webhook) {
             this.$warning(this.$t('organization.message.message_webhook'));
           } else {
-            this.addTask(data)
+            this.addTask(data);
           }
         } else {
-          this.addTask(data)
+          this.addTask(data);
         }
       } else {
         this.$warning(this.$t('organization.message.message'));
@@ -315,5 +317,19 @@ export default {
 
 .el-button {
   margin-left: 10px;
+}
+
+/deep/ .el-select .el-input.is-disabled .el-input__inner {
+  background-color: #F5F7FA;
+  border-color: #E4E7ED;
+  color: #0a0a0a;
+  cursor: not-allowed;
+}
+
+/deep/ .el-input.is-disabled .el-input__inner {
+  background-color: #F5F7FA;
+  border-color: #E4E7ED;
+  color: #0a0a0a;
+  cursor: not-allowed;
 }
 </style>

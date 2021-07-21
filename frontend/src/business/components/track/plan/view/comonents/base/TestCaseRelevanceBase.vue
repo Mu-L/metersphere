@@ -20,7 +20,7 @@
       </div>
       <div v-else>
         <div style="margin-bottom: 15px" v-if="flag">
-          <el-checkbox v-model="checked">同步添加关联的接口和性能测试</el-checkbox>
+          <el-checkbox v-model="checked">{{ $t('test_track.sync_add_api_load') }}</el-checkbox>
         </div>
         <ms-dialog-footer @cancel="close" @confirm="save"/>
       </div>
@@ -34,7 +34,7 @@
   import MsDialogFooter from '../../../../../common/components/MsDialogFooter'
   import SelectMenu from "../../../../common/SelectMenu";
   import RelevanceDialog from "./RelevanceDialog";
-  import {getCurrentProjectID} from "@/common/js/utils";
+  import {getCurrentProjectID, getCurrentUserId, getCurrentWorkspaceId} from "@/common/js/utils";
 
   export default {
     name: "TestCaseRelevanceBase",
@@ -91,10 +91,10 @@
       },
 
       getProject() {
-        this.result = this.$get("/project/listAll", res => {
+        this.result = this.$post("/project/list/related", {userId: getCurrentUserId(), workspaceId: getCurrentWorkspaceId()}, res => {
           let data = res.data;
           if (data) {
-            const index = data.findIndex(d => d.id === this.$store.state.projectId);
+            const index = data.findIndex(d => d.id === getCurrentProjectID());
             this.projects = data;
             if (index !== -1) {
               this.projectId = data[index].id;

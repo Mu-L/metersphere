@@ -33,8 +33,8 @@
       ref="apiCaseList"/>
 
     <template v-slot:footer>
-      <el-button type="primary" @click="copy" @keydown.enter.native.prevent>{{ $t('commons.copy') }}</el-button>
-      <el-button v-if="!isApiListEnable" type="primary" @click="reference" @keydown.enter.native.prevent>
+      <el-button type="primary" @click="copy" :loading="buttonIsWorking" @keydown.enter.native.prevent>{{ $t('commons.copy') }}</el-button>
+      <el-button v-if="!isApiListEnable" type="primary" :loading="buttonIsWorking" @click="reference" @keydown.enter.native.prevent>
         {{ $t('api_test.scenario.reference') }}
       </el-button>
     </template>
@@ -62,6 +62,7 @@ export default {
   },
   data() {
     return {
+      buttonIsWorking:false,
       result: {},
       currentProtocol: null,
       selectNodeIds: [],
@@ -77,10 +78,16 @@ export default {
     }
   },
   methods: {
+    changeButtonLoadingType(){
+      this.refresh();
+      this.buttonIsWorking = false;
+    },
     reference() {
+      this.buttonIsWorking = true;
       this.save('REF');
     },
     copy() {
+      this.buttonIsWorking = true;
       this.save('Copy');
     },
     save(reference) {
@@ -88,42 +95,34 @@ export default {
         let apis = this.$refs.apiList.selectRows;
         apis.forEach(api => {
           api.projectId = this.projectId;
-        })
-        this.$emit('save', this.$refs.apiList.selectRows, 'API', reference);
-        this.$refs.baseRelevance.close();
+        });
+        let params = this.$refs.apiList.getConditions();
+        this.result = this.$post("/api/definition/list/batch", params, (response) => {
+          let apis = response.data;
+          if(apis.length === 0){
+            this.$warning('请选择接口');
+            this.buttonIsWorking = false;
+          }else {
+            this.$emit('save', apis, 'API', reference);
+            this.$refs.baseRelevance.close();
+          }
+        },(error) => {
+          this.buttonIsWorking = false;
+        });
+
       } else {
-        let apiCases = this.$refs.apiCaseList.selectRows;
-        let ids = Array.from(apiCases).map(row => row.id);
-        this.result = this.$post("/api/testcase/get/request", {ids: ids}, (response) => {
-          apiCases.forEach((item) => {
-            item.request = response.data[item.id];
-            item.projectId = this.projectId;
-
-            let requestObj = JSON.parse(item.request);
-            if(requestObj.esbDataStruct != null ){
-              // //ESB接口
-              // let param = {};
-              // param.request = requestObj;
-              // param.method = "ESB";
-              // param.esbDataStruct = JSON.stringify(requestObj.esbDataStruct);
-              // if(requestObj.backEsbDataStruct != null){
-              //   param.backEsbDataStruct = JSON.stringify(requestObj.backEsbDataStruct);
-              // }else{
-              //   param.backEsbDataStruct = "";
-              // }
-
-              // this.$post("/api/definition/updateEsbRequest", param, response => {
-              //   if(response.data!=null){
-              //     if(response.data.request!=null){
-              //       item.request = JSON.stringify(response.data.request);
-              //       param.method = "TCP";
-              //     }
-              //   }
-              // })
-            }
-          });
-          this.$emit('save', apiCases, 'CASE', reference);
-          this.$refs.baseRelevance.close();
+        let params = this.$refs.apiCaseList.getConditions();
+        this.result = this.$post("/api/testcase/get/caseBLOBs/request", params, (response) => {
+          let apiCases = response.data;
+          if(apiCases.length === 0) {
+            this.$warning('请选择案例');
+            this.buttonIsWorking = false;
+          }else{
+            this.$emit('save', apiCases, 'CASE', reference);
+            this.$refs.baseRelevance.close();
+          }
+        },(error) => {
+          this.buttonIsWorking = false;
         });
       }
     },
@@ -133,6 +132,7 @@ export default {
       this.$refs.relevanceDialog.close();
     },
     open() {
+      this.buttonIsWorking = false;
       if (this.$refs.apiList) {
         this.$refs.apiList.clearSelection();
       }

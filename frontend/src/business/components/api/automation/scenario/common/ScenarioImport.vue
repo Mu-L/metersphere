@@ -67,7 +67,7 @@
 
 <script>
   import MsDialogFooter from "../../../../common/components/MsDialogFooter";
-  import {listenGoBack, removeGoBackListener} from "@/common/js/utils";
+  import {getCurrentProjectID, listenGoBack, removeGoBackListener} from "@/common/js/utils";
   import MsSelectTree from "../../../../common/select-tree/SelectTree";
 
   export default {
@@ -134,7 +134,7 @@
         formData: {
           file: undefined,
           swaggerUrl: '',
-          modeId: this.$t('commons.not_cover'),
+          modeId: 'incrementalMerge',
           moduleId: '',
         },
         rules: {},
@@ -164,7 +164,7 @@
         return this.selectedPlatformValue === 'Har';
       },
       projectId() {
-        return this.$store.state.projectId
+        return getCurrentProjectID();
       },
     },
     methods: {
@@ -202,7 +202,7 @@
           this.$warning(this.$t('api_test.api_import.suffixFormatErr'));
           return false;
         }
-        if (file.size / 1024 / 1024 > 20) {
+        if (file.size / 1024 / 1024 > 50) {
           this.$warning(this.$t('test_track.case.import.upload_limit_size'));
           return false;
         }

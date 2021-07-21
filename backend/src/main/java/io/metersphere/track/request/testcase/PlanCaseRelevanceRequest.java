@@ -13,6 +13,9 @@ public class PlanCaseRelevanceRequest {
      * 测试计划ID
      */
     private String planId;
+    private String executor;
+
+    private List<String> ids;
 
     /**
      * 当选择关联全部用例时把加载条件送到后台，从后台查询

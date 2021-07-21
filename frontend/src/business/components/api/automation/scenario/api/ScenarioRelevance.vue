@@ -19,12 +19,15 @@
       :select-project-id="projectId"
       :referenced="true"
       :trash-enable="false"
+      :is-reference-table="true"
       @selection="setData"
+      :is-relate="true"
+      :custom-num="customNum"
       ref="apiScenarioList"/>
 
     <template v-slot:footer>
-      <el-button type="primary" @click="copy" @keydown.enter.native.prevent>{{$t('commons.copy')}}</el-button>
-      <el-button type="primary" @click="reference" @keydown.enter.native.prevent> {{ $t('api_test.scenario.reference') }}</el-button>
+      <el-button type="primary" @click="copy" :loading="buttonIsWorking" @keydown.enter.native.prevent>{{$t('commons.copy')}}</el-button>
+      <el-button type="primary" @click="reference" :loading="buttonIsWorking" @keydown.enter.native.prevent> {{ $t('api_test.scenario.reference') }}</el-button>
     </template>
   </test-case-relevance-base>
 </template>
@@ -50,6 +53,7 @@
     },
     data() {
       return {
+        buttonIsWorking: false,
         result: {},
         currentProtocol: null,
         selectNodeIds: [],
@@ -57,51 +61,163 @@
         isApiListEnable: true,
         currentScenario: [],
         currentScenarioIds: [],
-        projectId: ''
+        projectId: '',
+        customNum: false
       }
     },
     watch: {
-      projectId() {
-        this.$refs.apiScenarioList.search(this.projectId);
+      projectId(val) {
         this.$refs.nodeTree.list(this.projectId);
+        if (val) {
+          this.$get("/project/get/" + val, result => {
+            let data = result.data;
+            if (data) {
+              this.customNum = data.scenarioCustomNum;
+            }
+          });
+        }
+        this.$refs.apiScenarioList.search(this.projectId);
       }
     },
     methods: {
-      reference() {
-        let scenarios = [];
-        if (!this.currentScenario || this.currentScenario.length < 1) {
-          this.$emit('请选择场景');
-          return;
-        }
-        this.currentScenario.forEach(item => {
-          let obj = {id: item.id, name: item.name, type: "scenario", referenced: 'REF', resourceId: getUUID(), projectId: item.projectId};
-          scenarios.push(obj);
-        });
-        this.$emit('save', scenarios);
-        this.$refs.baseRelevance.close();
+      changeButtonLoadingType(){
+        this.buttonIsWorking = false;
       },
-      copy() {
+      reference() {
+        this.buttonIsWorking = true;
         let scenarios = [];
-        if (!this.currentScenarioIds || this.currentScenarioIds.length < 1) {
-          this.$warning('请选择场景');
-          return;
-        }
-        this.result = this.$post("/api/automation/getApiScenarios/", this.currentScenarioIds, response => {
-          if (response.data) {
-            response.data.forEach(item => {
-              let scenarioDefinition = JSON.parse(item.scenarioDefinition);
-              if (scenarioDefinition && scenarioDefinition.hashTree) {
-                let obj = {
-                  id: item.id, name: item.name, type: "scenario", headers: scenarioDefinition.headers, variables: scenarioDefinition.variables, environmentMap: scenarioDefinition.environmentMap,
-                  referenced: 'Copy', resourceId: getUUID(), hashTree: scenarioDefinition.hashTree, projectId: item.projectId
-                };
-                scenarios.push(obj);
-              }
+        let conditions = this.getConditions();
+        if (conditions.selectAll) {
+          let params = {};
+          params.ids = this.currentScenarioIds;
+          params.condition = conditions;
+          let url = "/api/automation/list/all/";
+          this.result = this.$post(url, params, (response) => {
+            this.currentScenario = response.data;
+            if (!this.currentScenario || this.currentScenario.length < 1) {
+              this.$emit('请选择场景');
+              this.buttonIsWorking = false;
+              return;
+            }
+            this.currentScenario.forEach(item => {
+              let obj = {
+                id: item.id,
+                name: item.name,
+                type: "scenario",
+                referenced: 'REF',
+                resourceId: getUUID(),
+                projectId: item.projectId
+              };
+              scenarios.push(obj);
             });
             this.$emit('save', scenarios);
             this.$refs.baseRelevance.close();
+            this.buttonIsWorking = false;
+          },(error) => {
+            this.buttonIsWorking = false;
+          });
+        } else {
+          if (!this.currentScenario || this.currentScenario.length < 1) {
+            this.$emit('请选择场景');
+            this.buttonIsWorking = false;
+            return;
           }
-        })
+          this.currentScenario.forEach(item => {
+            let obj = {
+              id: item.id,
+              name: item.name,
+              type: "scenario",
+              referenced: 'REF',
+              resourceId: getUUID(),
+              projectId: item.projectId
+            };
+            scenarios.push(obj);
+          });
+          this.$emit('save', scenarios);
+          this.$refs.baseRelevance.close();
+          this.buttonIsWorking = false;
+        }
+      },
+      copy() {
+        this.buttonIsWorking = true;
+        let scenarios = [];
+        let conditions = this.getConditions();
+        if (conditions.selectAll) {
+          let url = "/api/automation/id/all/";
+          let params = {};
+          params.ids = this.currentScenarioIds;
+          params.condition = conditions;
+          this.result = this.$post(url, params, (response) => {
+            this.currentScenarioIds = response.data;
+            if (!this.currentScenarioIds || this.currentScenarioIds.length < 1) {
+              this.$warning('请选择场景');
+              this.buttonIsWorking = false;
+              return;
+            }
+            this.result = this.$post("/api/automation/getApiScenarios/", this.currentScenarioIds, response => {
+              if (response.data) {
+                response.data.forEach(item => {
+                  let scenarioDefinition = JSON.parse(item.scenarioDefinition);
+                  if (scenarioDefinition && scenarioDefinition.hashTree) {
+                    let obj = {
+                      id: item.id,
+                      name: item.name,
+                      type: "scenario",
+                      headers: scenarioDefinition.headers,
+                      variables: scenarioDefinition.variables,
+                      environmentMap: scenarioDefinition.environmentMap,
+                      referenced: 'Copy',
+                      resourceId: getUUID(),
+                      hashTree: scenarioDefinition.hashTree,
+                      projectId: item.projectId
+                    };
+                    scenarios.push(obj);
+                  }
+                });
+                this.$emit('save', scenarios);
+                this.$refs.baseRelevance.close();
+                this.buttonIsWorking = false;
+              }
+            },(error) => {
+              this.buttonIsWorking = false;
+            });
+          },(error) => {
+            this.buttonIsWorking = false;
+          });
+        } else {
+          if (!this.currentScenarioIds || this.currentScenarioIds.length < 1) {
+            this.$warning('请选择场景');
+            this.buttonIsWorking = false;
+            return;
+          }
+          this.result = this.$post("/api/automation/getApiScenarios/", this.currentScenarioIds, response => {
+            if (response.data) {
+              response.data.forEach(item => {
+                let scenarioDefinition = JSON.parse(item.scenarioDefinition);
+                if (scenarioDefinition && scenarioDefinition.hashTree) {
+                  let obj = {
+                    id: item.id,
+                    name: item.name,
+                    type: "scenario",
+                    headers: scenarioDefinition.headers,
+                    variables: scenarioDefinition.variables,
+                    environmentMap: scenarioDefinition.environmentMap,
+                    referenced: 'Copy',
+                    resourceId: getUUID(),
+                    hashTree: scenarioDefinition.hashTree,
+                    projectId: item.projectId
+                  };
+                  scenarios.push(obj);
+                }
+              });
+              this.$emit('save', scenarios);
+              this.$refs.baseRelevance.close();
+              this.buttonIsWorking = false;
+            }
+          },(error) => {
+            this.buttonIsWorking = false;
+          });
+        }
       },
       close() {
         this.$emit('close');
@@ -109,6 +225,7 @@
         this.$refs.relevanceDialog.close();
       },
       open() {
+        this.buttonIsWorking = false;
         this.$refs.baseRelevance.open();
         if (this.$refs.apiScenarioList) {
           this.$refs.apiScenarioList.search(this.projectId);
@@ -133,6 +250,9 @@
       setProject(projectId) {
         this.projectId = projectId;
         this.selectNodeIds = [];
+      },
+      getConditions() {
+        return this.$refs.apiScenarioList.getConditions();
       },
     }
   }

@@ -1,6 +1,6 @@
 <template>
   <div>
-    <el-container>
+    <el-container v-loading="isLoading">
       <el-main style="padding-top: 0px;padding-bottom: 0px">
         <el-row v-if="sharePage" style="margin-top: 10px">
           <el-select size="small" :placeholder="$t('api_test.definition.document.order')" v-model="apiSearch.orderCondition" style="float: right;width: 180px;margin-right: 5px"
@@ -26,15 +26,21 @@
                     @keyup.enter.native="initApiDocSimpleList()" v-model="apiSearch.name"/>
           <api-document-batch-share v-xpack v-if="showXpackCompnent" @shareApiDocument="shareApiDocument" :project-id="projectId" :share-url="batchShareUrl" style="float: right;margin: 6px;font-size: 17px"/>
         </el-row>
-        <el-row v-else style="margin-top: 0px;position: fixed;float: right;margin-right: 0px;margin-left: 400px;top: 150px; right: 90px;">
-          <el-select size="small" :placeholder="$t('api_test.definition.document.order')" v-model="apiSearch.orderCondition" style="float: right;width: 180px;margin-right: 5px"
+        <el-row v-else
+                style="margin-top: 0px;position: fixed;float: right;margin-right: 0px;margin-left: 400px;top: 135px; right: 90px; z-index: 9999">
+          <el-select size="small" :placeholder="$t('api_test.definition.document.order')"
+                     v-model="apiSearch.orderCondition" style="float: right;width: 180px;margin-right: 5px"
                      class="ms-api-header-select" @change="initApiDocSimpleList" clearable>
-            <el-option key="createTimeDesc" :label="$t('api_test.definition.document.create_time_sort')" value="createTimeDesc" />
-            <el-option key="editTimeAsc" :label="$t('api_test.definition.document.edit_time_positive_sequence')" value="editTimeAsc"/>
-            <el-option key="editTimeDesc" :label="$t('api_test.definition.document.edit_time_Reverse_order')" value="editTimeDesc"/>
+            <el-option key="createTimeDesc" :label="$t('api_test.definition.document.create_time_sort')"
+                       value="createTimeDesc"/>
+            <el-option key="editTimeAsc" :label="$t('api_test.definition.document.edit_time_positive_sequence')"
+                       value="editTimeAsc"/>
+            <el-option key="editTimeDesc" :label="$t('api_test.definition.document.edit_time_Reverse_order')"
+                       value="editTimeDesc"/>
           </el-select>
 
-          <el-select size="small" :placeholder="$t('api_test.definition.document.request_method')" v-model="apiSearch.type" style="float: right;width: 180px;margin-right: 5px"
+          <el-select size="small" :placeholder="$t('api_test.definition.document.request_method')"
+                     v-model="apiSearch.type" style="float: right;width: 180px;margin-right: 5px"
                      class="ms-api-header-select" @change="initApiDocSimpleList" clearable>
             <el-option key="ALL" :label="$t('api_test.definition.document.data_set.all')" value="ALL"/>
             <el-option key="GET" :label="'GET '+$t('api_test.definition.document.request_interface')" value="GET"/>
@@ -98,7 +104,7 @@
                 </div>
                 <div v-else>
                   <el-table border :show-header="false"
-                            :data="getJsonArr(apiInfo.requestHead)" row-key="name" class="test-content document-table">
+                            :data="getJsonArr(apiInfo.requestHead)" class="test-content document-table">
                     <el-table-column prop="name"
                                      :label="$t('api_test.definition.document.table_coloum.name')"
                                      show-overflow-tooltip/>
@@ -120,13 +126,18 @@
                 </div>
                 <div v-else>
                   <el-table border
-                            :data="getJsonArr(apiInfo.urlParams)" row-key="name" class="test-content document-table">
+                            :data="getJsonArr(apiInfo.urlParams)" class="test-content document-table">
                     <el-table-column prop="name"
                                      :label="$t('api_test.definition.document.table_coloum.name')"
                                      min-width="120px"
                                      show-overflow-tooltip/>
-                    <el-table-column prop="isEnable"
+<!--                    <el-table-column prop="isEnable"-->
+<!--                                     :label="$t('api_test.definition.document.table_coloum.is_required')"-->
+<!--                                     min-width="80px"-->
+<!--                                     show-overflow-tooltip/>-->
+                    <el-table-column prop="required"
                                      :label="$t('api_test.definition.document.table_coloum.is_required')"
+                                     :formatter="formatBoolean"
                                      min-width="80px"
                                      show-overflow-tooltip/>
                     <el-table-column prop="value"
@@ -151,7 +162,7 @@
               </div>
               <div>
                 <el-table border v-if="formParamTypes.includes(apiInfo.requestBodyParamType)"
-                          :data="getJsonArr(apiInfo.requestBodyFormData)" row-key="name"
+                          :data="getJsonArr(apiInfo.requestBodyFormData)"
                           class="test-content document-table">
                   <el-table-column prop="name"
                                    :label="$t('api_test.definition.document.table_coloum.name')"
@@ -218,7 +229,7 @@
               <div class="blackFontClass">
                 {{ $t('api_test.definition.document.response_head') }}:
                 <el-table border :show-header="false"
-                          :data="getJsonArr(apiInfo.responseHead)" row-key="name" class="test-content document-table">
+                          :data="getJsonArr(apiInfo.responseHead)" class="test-content document-table">
                   <el-table-column prop="name"
                                    :label="$t('api_test.definition.document.table_coloum.name')"
                                    show-overflow-tooltip/>
@@ -238,7 +249,7 @@
               </div>
               <div>
                 <el-table border v-if="formParamTypes.includes(apiInfo.responseBodyParamType)"
-                          :data="getJsonArr(apiInfo.responseBodyFormData)" row-key="id"
+                          :data="getJsonArr(apiInfo.responseBodyFormData)"
                           class="test-content document-table">
                   <el-table-column prop="name"
                                    :label="$t('api_test.definition.document.table_coloum.name')"
@@ -262,6 +273,9 @@
                                    min-width="120px"
                                    show-overflow-tooltip/>
                 </el-table>
+                <div v-else-if="apiInfo.responseBodyParamType == 'JSON-SCHEMA'" style="margin-left: 10px">
+                  <ms-json-code-edit :body="apiInfo.jsonSchemaResponseBody" ref="jsonCodeEdit"/>
+                </div>
                 <div v-else class="showDataDiv">
                   <br/>
                   <p style="margin: 0px 20px;"
@@ -276,7 +290,7 @@
               <div class="blackFontClass">
                 {{ $t('api_test.definition.document.response_code') }}:
                 <el-table border :show-header="false"
-                          :data="getJsonArr(apiInfo.responseCode)" row-key="name" class="test-content document-table">
+                          :data="getJsonArr(apiInfo.responseCode)" class="test-content document-table">
                   <el-table-column prop="name"
                                    :label="$t('api_test.definition.document.table_coloum.name')"
                                    show-overflow-tooltip/>
@@ -290,7 +304,7 @@
         </div>
       </el-main>
       <!-- 右侧列表 -->
-      <el-aside width="200px" style="margin-top: 70px;">
+      <el-aside width="200px" style="margin-top: 30px;">
         <div ref="apiDocList" >
           <el-steps style="height: 40%" direction="vertical" :active="apiStepIndex">
             <el-step v-for="(apiInfo) in apiInfoArray" :key="apiInfo.id" @click.native="clickStep(apiInfo.id)">
@@ -326,6 +340,7 @@ export default {
   },
   data() {
     return {
+      isLoading: false,
       shareUrl:"",
       batchShareUrl:"",
       apiStepIndex: 0,
@@ -352,6 +367,7 @@ export default {
         requestBodyStrutureData: "",
         sharePopoverVisible:false,
         jsonSchemaBody: {},
+        JsonSchemaResponseBody:{},
         responseHead: "无",
         responseBody: "",
         responseBodyParamType: "无",
@@ -421,7 +437,7 @@ export default {
     },
     trashEnable() {
       this.initApiDocSimpleList();
-    }
+    },
   },
   methods: {
     formatRowData(dataType, data) {
@@ -439,7 +455,7 @@ export default {
     },
     changeFixed(clientHeight) {
       if (this.$refs.apiDocInfoDiv) {
-        let countPageHeight = 300;
+        let countPageHeight = 210;
         if(this.pageHeaderHeight!=0 && this.pageHeaderHeight != null){
           countPageHeight = this.pageHeaderHeight
         }
@@ -537,6 +553,8 @@ export default {
     //itemIndex,afterNodeIndex,beforeNodeIndex 三个是回调参数，用于重新构建showArray的数据 isRedirectScroll:是否调用跳转函数
     selectApiInfoBatch(indexArr,apiIdArr,itemIndex,afterNodeIndex,beforeNodeIndex,isRedirectScroll) {
       if(indexArr.length != apiIdArr.length){
+        this.isLoading = false;
+        this.clickStepFlag = false;
         return;
       }else {
         let params = {};
@@ -557,6 +575,8 @@ export default {
 
     },
     clickStep(apiId) {
+      this.isLoading = true;
+      this.clickStepFlag = true;
       for (let index = 0; index < this.apiInfoArray.length; index++) {
         if (apiId == this.apiInfoArray[index].id) {
           this.apiStepIndex = index;
@@ -654,7 +674,10 @@ export default {
     handleScroll(){
       if(!this.clickStepFlag){
         //apiDocInfoDiv的总高度，是(每个item的高度+20)数量
-        let apiDocDivScrollTop = this.$refs.apiDocInfoDiv.scrollTop;
+        let apiDocDivScrollTop = 0;
+        if(this.$refs.apiDocInfoDiv&&this.$refs.apiDocInfoDiv.scrollTop){
+          apiDocDivScrollTop = this.$refs.apiDocInfoDiv.scrollTop;
+        }
         let apiDocDivClientTop = this.$refs.apiDocInfoDiv.clientHeight;
         let scrolledHeigh = apiDocDivScrollTop+apiDocDivClientTop;
         let lastIndex = 0;
@@ -731,7 +754,9 @@ export default {
           }else{
             this.apiShowArray.shift();
             let itemHeight = this.$refs.apiDocInfoDivItem[0].offsetHeight+10;
-            this.$refs.apiDocInfoDiv.scrollTop = (apiDocDivScrollTop-itemHeight);
+            if(this.$refs.apiDocInfoDiv&&this.$refs.apiDocInfoDiv.scrollTop){
+              this.$refs.apiDocInfoDiv.scrollTop = (apiDocDivScrollTop-itemHeight);
+            }
           }
           this.apiStepIndex ++;
         }
@@ -750,7 +775,13 @@ export default {
         }
       }
       this.clickStepFlag = true;
-      this.$refs.apiDocInfoDiv.scrollTop = (apiDocDivClientTop+itemHeightCount);
+      let scrollTopIndex = this.$refs.apiDocInfoDiv.scrollTop;
+      if(this.$refs.apiDocInfoDiv&&this.$refs.apiDocInfoDiv.scrollTop){
+        this.$refs.apiDocInfoDiv.scrollTop = (apiDocDivClientTop+itemHeightCount);
+      }else if(scrollTopIndex === 0){
+        this.$refs.apiDocInfoDiv.scrollTop = (apiDocDivClientTop+itemHeightCount);
+      }
+      this.isLoading = false;
     },
 
     //检查要展示的api信息节点，和上下个2个及以内的范围内数据有没有查询过。并赋值为showArray
@@ -801,7 +832,9 @@ export default {
       }else{
         if(isRedirectScroll){
           //进行跳转
-          this.redirectScroll();
+          this.$nextTick(() => {
+            this.redirectScroll();
+          });
         }
       }
     },
@@ -845,13 +878,6 @@ export default {
 .smallFontClass {
   font-size: 13px;
   margin: 20px 5px;
-}
-
-.tip {
-  padding: 3px 5px;
-  font-size: 14px;
-  border-radius: 4px;
-  border-left: 4px solid #783887;
 }
 
 .apiInfoRow {

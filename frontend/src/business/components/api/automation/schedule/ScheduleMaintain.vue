@@ -13,13 +13,15 @@
                   <el-col :span="18">
                     <el-input :disabled="isReadOnly" v-model="form.cronValue" class="inp"
                               :placeholder="$t('schedule.please_input_cron_expression')"/>
-                    <el-button :disabled="isReadOnly" type="primary" @click="saveCron" v-tester>{{
+                    <el-button :disabled="isReadOnly" type="primary" @click="saveCron">{{
                         $t('commons.save')
                       }}
                     </el-button>
                   </el-col>
                   <el-col :span="6">
-                    <schedule-switch :schedule="schedule" :corn-value="form.cronValue" @resultListChange="getExecuteTimeTemplate" @scheduleChange="scheduleChange"></schedule-switch>
+                    <schedule-switch :schedule="schedule" :corn-value="form.cronValue"
+                                     @resultListChange="getExecuteTimeTemplate"
+                                     @scheduleChange="scheduleChange"></schedule-switch>
                   </el-col>
                 </el-row>
 
@@ -38,7 +40,7 @@
             </el-dialog>
           </el-tab-pane>
           <el-tab-pane :label="$t('schedule.task_notification')" name="second">
-            <ms-schedule-notification :is-tester-permission="isTesterPermission" :test-id="testId"
+            <ms-schedule-notification :test-id="testId"
                                       :schedule-receiver-options="scheduleReceiverOptions"/>
           </el-tab-pane>
         </el-tabs>
@@ -48,7 +50,13 @@
 </template>
 
 <script>
-import {checkoutTestManagerOrTestUser, getCurrentUser, listenGoBack, removeGoBackListener} from "@/common/js/utils";
+import {
+  getCurrentOrganizationId,
+  getCurrentProjectID,
+  getCurrentUser, getCurrentWorkspaceId,
+  listenGoBack,
+  removeGoBackListener
+} from "@/common/js/utils";
 import Crontab from "@/business/components/common/cron/Crontab";
 import CrontabResult from "@/business/components/common/cron/CrontabResult";
 import {cronValidate} from "@/common/js/cron";
@@ -169,20 +177,18 @@ export default {
     initUserList() {
       let param = {
         name: '',
-        organizationId: this.currentUser().lastOrganizationId
+        organizationId: getCurrentOrganizationId()
       };
 
-      if (this.isTesterPermission) {
-        this.result = this.$post('user/org/member/list/all', param, response => {
-          this.scheduleReceiverOptions = response.data
-        });
-      }
+      this.result = this.$post('user/org/member/list/all', param, response => {
+        this.scheduleReceiverOptions = response.data;
+      });
 
     },
     buildParam() {
       let param = {};
-      param.notices = this.tableData
-      param.testId = this.testId
+      param.notices = this.tableData;
+      param.testId = this.testId;
       return param;
     },
     open(row) {
@@ -202,7 +208,7 @@ export default {
       this.dialogVisible = true;
       this.form.cronValue = this.schedule.value;
       listenGoBack(this.close);
-      this.activeName = 'first'
+      this.activeName = 'first';
     },
     findSchedule() {
       var scheduleResourceID = this.testId;
@@ -228,7 +234,7 @@ export default {
       this.$refs['from'].validate((valid) => {
         if (valid) {
           this.intervalShortValidate();
-          let formCronValue = this.form.cronValue
+          let formCronValue = this.form.cronValue;
           this.schedule.enable = true;
           this.schedule.value = formCronValue;
           this.saveSchedule();
@@ -243,6 +249,13 @@ export default {
       let param = {};
       param = this.schedule;
       param.resourceId = this.testId;
+      // 兼容问题，数据库里有的projectId为空
+      if (!param.projectId) {
+        param.projectId = getCurrentProjectID();
+      }
+      if (!param.workspaceId) {
+        param.workspaceId = getCurrentWorkspaceId();
+      }
       let url = '/api/automation/schedule/create';
       if (this.scheduleTaskType === "TEST_PLAN_TEST") {
         param.scheduleFrom = "testPlan";
@@ -301,15 +314,10 @@ export default {
       let time2 = new Date(resultList[1]);
       return time2 - time1;
     },
-    getExecuteTimeTemplate(executeTileArr){
+    getExecuteTimeTemplate(executeTileArr) {
       alert(executeTileArr);
     },
   },
-  computed: {
-    isTesterPermission() {
-      return checkoutTestManagerOrTestUser();
-    }
-  }
 }
 </script>
 

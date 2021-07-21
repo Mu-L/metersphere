@@ -16,6 +16,9 @@
             <if test="request.workspaceId != null">
                 and schedule.workspace_id = #{request.workspaceId}
             </if>
+            <if test="request.projectId != null">
+                and schedule.project_id = #{request.projectId}
+            </if>
             <if test="request.enable != null">
                 and schedule.enable = #{request.enable}
             </if>
@@ -80,10 +83,21 @@
         )
         WHERE sch.`enable` = true
           AND sch.project_id = #{projectId,jdbcType=VARCHAR}
-          and sch.`group` in
-            <foreach collection="types" item="item" separator="," open="(" close=")">
-                #{item}
+
+        <if test="request.filters != null and request.filters.size() > 0">
+            <foreach collection="request.filters.entrySet()" index="key" item="values">
+                <if test="values != null and values.size() > 0">
+                    <choose>
+                        <when test="key=='task_type'">
+                            and sch.group in
+                            <foreach collection="values" item="value" separator="," open="(" close=")">
+                                #{value}
+                            </foreach>
+                        </when>
+                    </choose>
+                </if>
             </foreach>
+        </if>
     </select>
     <select id="select" resultType="io.metersphere.api.dto.definition.ApiSwaggerUrlDTO">
         select * from swagger_url_project where id=#{id}

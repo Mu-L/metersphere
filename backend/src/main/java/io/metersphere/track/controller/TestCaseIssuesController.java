@@ -1,61 +1,57 @@
 package io.metersphere.track.controller;
 
-import io.metersphere.base.domain.Issues;
-import io.metersphere.track.issue.domain.PlatformUser;
-import io.metersphere.track.issue.domain.ZentaoBuild;
+import com.alibaba.fastjson.JSON;
+import io.metersphere.base.domain.IssuesDao;
+import io.metersphere.base.mapper.ext.ExtTestPlanTestCaseMapper;
+import io.metersphere.commons.constants.OperLogConstants;
+import io.metersphere.commons.utils.LogUtil;
+import io.metersphere.log.annotation.MsAuditLog;
+import io.metersphere.track.dto.TestCaseDTO;
+import io.metersphere.track.request.issues.IssuesRelevanceRequest;
 import io.metersphere.track.service.IssuesService;
-import io.metersphere.track.request.testcase.IssuesRequest;
-import org.springframework.web.bind.annotation.*;
+import io.metersphere.track.service.TestCaseIssueService;
+import org.apache.commons.lang3.exception.ExceptionUtils;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import javax.annotation.Resource;
 import java.util.List;
 
-@RequestMapping("issues")
+@RequestMapping("test/case/issues")
 @RestController
 public class TestCaseIssuesController {
 
     @Resource
+    private TestCaseIssueService testCaseIssueService;
+    @Resource
     private IssuesService issuesService;
+    @Resource
+    private ExtTestPlanTestCaseMapper extTestPlanTestCaseMapper;
 
-    @PostMapping("/add")
-    public void addIssues(@RequestBody IssuesRequest issuesRequest) {
-        issuesService.addIssues(issuesRequest);
+    @PostMapping("/list")
+    public List<TestCaseDTO> list(@RequestBody IssuesRelevanceRequest request) {
+        return testCaseIssueService.list(request);
     }
 
-    @GetMapping("/get/{id}")
-    public List<Issues> getIssues(@PathVariable String id) {
-        return issuesService.getIssues(id);
+    @PostMapping("/relate")
+    @MsAuditLog(module = "track_test_case", type = OperLogConstants.ASSOCIATE_ISSUE, content = "#msClass.getLogDetails(#request)", msClass = TestCaseIssueService.class)
+    public void relate(@RequestBody IssuesRelevanceRequest request) {
+        testCaseIssueService.relate(request);
+        try {
+            List<IssuesDao> issues = issuesService.getIssues(request.getCaseId());
+            if (org.apache.commons.collections4.CollectionUtils.isEmpty(issues)) {
+                LogUtil.error(request.getCaseId() + "下的缺陷为空");
+            }
+            int issuesCount = issues.size();
+            this.updateIssues(issuesCount, "", request.getCaseId(), JSON.toJSONString(issues));
+        } catch (Exception e) {
+            LogUtil.error("处理bug数量报错caseId: {}, message: {}", request.getCaseId(), ExceptionUtils.getStackTrace(e));
+        }
     }
 
-    @GetMapping("/auth/{platform}")
-    public void testAuth(@PathVariable String platform) {
-        issuesService.testAuth(platform);
+    public void updateIssues(int issuesCount, String id, String caseId, String issues) {
+        extTestPlanTestCaseMapper.update(issuesCount, id, caseId, issues);
     }
-
-    @GetMapping("/close/{id}")
-    public void closeLocalIssue(@PathVariable String id) {
-        issuesService.closeLocalIssue(id);
-    }
-
-    @PostMapping("/delete")
-    public void deleteIssue(@RequestBody IssuesRequest request) {
-        issuesService.deleteIssue(request);
-    }
-
-    @GetMapping("/tapd/user/{caseId}")
-    public List<PlatformUser> getTapdUsers(@PathVariable String caseId) {
-        return issuesService.getTapdProjectUsers(caseId);
-    }
-
-    @GetMapping("/zentao/user/{caseId}")
-    public List<PlatformUser> getZentaoUsers(@PathVariable String caseId) {
-        return issuesService.getZentaoUsers(caseId);
-    }
-
-    @GetMapping("/zentao/builds/{caseId}")
-    public List<ZentaoBuild> getZentaoBuilds(@PathVariable String caseId) {
-        return issuesService.getZentaoBuilds(caseId);
-    }
-
-
 }

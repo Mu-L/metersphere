@@ -23,7 +23,6 @@ import org.apache.jmeter.gui.Searchable;
 import org.apache.jmeter.testelement.TestPlan;
 import org.apache.jmeter.threads.JMeterContext.TestLogicalAction;
 import org.apache.jmeter.threads.JMeterContextService;
-import org.apache.jmeter.threads.JMeterVariables;
 import org.apache.jmeter.util.JMeterUtils;
 import org.apache.jorphan.util.JOrphanUtils;
 import org.slf4j.Logger;
@@ -164,12 +163,31 @@ public class SampleResult implements Serializable, Cloneable, Searchable {
         }
     }
 
+    /**
+     * 定制自定义添加 =================
+     */
     private String samplerId;
+
+    private String resourceId;
 
     public String getSamplerId() {
         return this.samplerId;
     }
 
+    public String getResourceId() {
+        return this.resourceId;
+    }
+
+    // 数据格式 List<id_name> 多层父级按照同级统计
+    private String scenario;
+
+    public String getScenario() {
+        return this.scenario;
+    }
+
+    /**
+     * 定制自定义添加 =================
+     */
     private SampleSaveConfiguration saveConfig;
 
     private SampleResult parent;
@@ -336,6 +354,8 @@ public class SampleResult implements Serializable, Cloneable, Searchable {
         Sampler sampler = JMeterContextService.getContext().getCurrentSampler();
         if (sampler != null) {
             this.samplerId = sampler.getPropertyAsString("MS-ID");
+            this.resourceId = sampler.getPropertyAsString("MS-RESOURCE-ID");
+            this.scenario = sampler.getPropertyAsString("MS-SCENARIO");
         }
 
     }

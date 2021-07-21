@@ -4,7 +4,9 @@
       <el-row>
         <el-col :span="api.protocol==='HTTP'? 3:5">
           <el-checkbox v-model="isSelectAll" class="select-all"/>
-          <span class="variable-combine"> {{api.name}}</span>
+          <el-tooltip :content="api.name">
+            <span class="ms-col-name"> {{api.name}}</span>
+          </el-tooltip>
         </el-col>
         <el-col :span="api.protocol==='HTTP'? 1:3">
           <el-tag size="mini" :style="{'background-color': getColor(true, api.method), border: getColor(true, api.method)}" class="api-el-tag">
@@ -48,11 +50,12 @@
               :project-id="projectId"
               :is-read-only="isReadOnly"
               :useEnvironment='useEnvironment'
-              @setEnvironment="setEnvironment"/>
+              @setEnvironment="setEnvironment" ref="environmentSelect"/>
           </div>
         </el-col>
         <el-col :span="1" v-if="!(isReadOnly || isCaseEdit)">
-          <el-button size="small" type="primary" @click="addCase" v-tester>+{{$t('api_test.definition.request.case')}}</el-button>
+          <el-button size="small" type="primary" @click="addCase">+{{ $t('api_test.definition.request.case') }}
+          </el-button>
         </el-col>
       </el-row>
     </el-card>
@@ -103,8 +106,13 @@
       },
     },
     methods: {
+      refreshEnvironment(){
+        this.$refs.environmentSelect.refreshEnvironment();
+      },
       setEnvironment(data) {
-        this.$emit('setEnvironment', data.id);
+        if(data){
+          this.$emit('setEnvironment', data.id);
+        }
       },
       search() {
         if (this.priorities && this.condition.order) {
@@ -121,6 +129,7 @@
       },
       addCase() {
         this.$emit('addCase');
+        this.refreshEnvironment();
       },
       getColor(enable, method) {
         if (enable) {
@@ -176,4 +185,14 @@
     margin-right: 10px;
   }
 
+  .ms-col-name {
+    display: inline-block;
+    margin: 0 5px;
+    overflow-x: hidden;
+    padding-bottom: 0;
+    text-overflow: ellipsis;
+    vertical-align: middle;
+    white-space: nowrap;
+    width: 100px;
+  }
 </style>

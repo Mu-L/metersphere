@@ -9,10 +9,16 @@ import io.metersphere.api.dto.automation.DragApiScenarioModuleRequest;
 import io.metersphere.base.domain.*;
 import io.metersphere.base.mapper.ApiScenarioMapper;
 import io.metersphere.base.mapper.ApiScenarioModuleMapper;
+import io.metersphere.base.mapper.ext.ExtApiScenarioMapper;
 import io.metersphere.base.mapper.ext.ExtApiScenarioModuleMapper;
 import io.metersphere.commons.constants.TestCaseConstants;
 import io.metersphere.commons.exception.MSException;
+import io.metersphere.commons.utils.SessionUtils;
 import io.metersphere.i18n.Translator;
+import io.metersphere.log.utils.ReflexObjectUtil;
+import io.metersphere.log.vo.DetailColumn;
+import io.metersphere.log.vo.OperatingLogDetails;
+import io.metersphere.log.vo.api.ModuleReference;
 import io.metersphere.service.NodeTreeService;
 import io.metersphere.service.ProjectService;
 import io.metersphere.track.service.TestPlanProjectService;
@@ -47,6 +53,8 @@ public class ApiScenarioModuleService extends NodeTreeService<ApiScenarioModuleD
     TestPlanProjectService testPlanProjectService;
     @Resource
     private ProjectService projectService;
+    @Resource
+    private ExtApiScenarioMapper extApiScenarioMapper;
 
     public ApiScenarioModuleService() {
         super(ApiScenarioModuleDTO.class);
@@ -54,23 +62,82 @@ public class ApiScenarioModuleService extends NodeTreeService<ApiScenarioModuleD
 
     public List<ApiScenarioModuleDTO> getNodeTreeByProjectId(String projectId) {
         // 判断当前项目下是否有默认模块，没有添加默认模块
-        ApiScenarioModuleExample example = new ApiScenarioModuleExample();
-        example.createCriteria().andProjectIdEqualTo(projectId).andNameEqualTo("默认模块");
-        long count = apiScenarioModuleMapper.countByExample(example);
-        if (count <= 0) {
-            ApiScenarioModule record = new ApiScenarioModule();
-            record.setId(UUID.randomUUID().toString());
-            record.setName("默认模块");
-            record.setPos(1.0);
-            record.setLevel(1);
-            record.setCreateTime(System.currentTimeMillis());
-            record.setUpdateTime(System.currentTimeMillis());
-            record.setProjectId(projectId);
-            apiScenarioModuleMapper.insert(record);
-        }
+       this.getDefaultNode(projectId);
 
         List<ApiScenarioModuleDTO> nodes = extApiScenarioModuleMapper.getNodeTreeByProjectId(projectId);
+        ApiScenarioRequest request = new ApiScenarioRequest();
+        request.setProjectId(projectId);
+        List<String> list = new ArrayList<>();
+        list.add("Prepare");
+        list.add("Underway");
+        list.add("Completed");
+        Map<String, List<String>> filters = new LinkedHashMap<>();
+        filters.put("status", list);
+        request.setFilters(filters);
+        //优化：所有SQL统一查出来
+//        nodes.forEach(node -> {
+//            List<String> scenarioNodes = new ArrayList<>();
+//            scenarioNodes = this.nodeList(nodes, node.getId(), scenarioNodes);
+//            scenarioNodes.add(node.getId());
+//            request.setModuleIds(scenarioNodes);
+//            node.setCaseNum(extApiScenarioMapper.listModule(request));
+//        });
+        List<String> allModuleIdList = new ArrayList<>();
+        for (ApiScenarioModuleDTO node : nodes) {
+            List<String> moduleIds = new ArrayList<>();
+            moduleIds = this.nodeList(nodes, node.getId(), moduleIds);
+            moduleIds.add(node.getId());
+            for (String moduleId : moduleIds) {
+                if(!allModuleIdList.contains(moduleId)){
+                    allModuleIdList.add(moduleId);
+                }
+            }
+        }
+        request.setModuleIds(allModuleIdList);
+        List<Map<String,Object>> moduleCountList = extApiScenarioMapper.listModuleByCollection(request);
+        Map<String,Integer> moduleCountMap = this.parseModuleCountList(moduleCountList);
+        nodes.forEach(node -> {
+            List<String> moduleIds = new ArrayList<>();
+            moduleIds = this.nodeList(nodes, node.getId(), moduleIds);
+            moduleIds.add(node.getId());
+            int countNum = 0;
+            for (String moduleId : moduleIds) {
+                if(moduleCountMap.containsKey(moduleId)){
+                    countNum += moduleCountMap.get(moduleId).intValue();
+                }
+            }
+            node.setCaseNum(countNum);
+        });
         return getNodeTrees(nodes);
+    }
+    private Map<String, Integer> parseModuleCountList(List<Map<String, Object>> moduleCountList) {
+        Map<String,Integer> returnMap = new HashMap<>();
+        for (Map<String, Object> map: moduleCountList){
+            Object moduleIdObj = map.get("moduleId");
+            Object countNumObj = map.get("countNum");
+            if(moduleIdObj!= null && countNumObj != null){
+                String moduleId = String.valueOf(moduleIdObj);
+                try {
+                    Integer countNumInteger = new Integer(String.valueOf(countNumObj));
+                    returnMap.put(moduleId,countNumInteger);
+                }catch (Exception e){
+                }
+            }
+        }
+        return returnMap;
+    }
+
+    public static List<String> nodeList(List<ApiScenarioModuleDTO> nodes, String pid, List<String> list) {
+        for (ApiScenarioModuleDTO node : nodes) {
+            //遍历出父id等于参数的id，add进子节点集合
+            if (StringUtils.equals(node.getParentId(), pid)) {
+                list.add(node.getId());
+                //递归遍历下一级
+                nodeList(nodes, node.getId(), list);
+            }
+        }
+
+        return list;
     }
 
     private double getNextLevelPos(String projectId, int level, String parentId) {
@@ -98,6 +165,7 @@ public class ApiScenarioModuleService extends NodeTreeService<ApiScenarioModuleD
         node.setId(UUID.randomUUID().toString());
         node.setCreateTime(System.currentTimeMillis());
         node.setUpdateTime(System.currentTimeMillis());
+        node.setCreateUser(SessionUtils.getUserId());
         double pos = getNextLevelPos(node.getProjectId(), node.getLevel(), node.getParentId());
         node.setPos(pos);
         apiScenarioModuleMapper.insertSelective(node);
@@ -190,18 +258,19 @@ public class ApiScenarioModuleService extends NodeTreeService<ApiScenarioModuleD
         request.setUpdateTime(System.currentTimeMillis());
         checkApiScenarioModuleExist(request);
         List<ApiScenarioDTO> apiScenarios = queryByModuleIds(request);
-
         apiScenarios.forEach(apiScenario -> {
-            StringBuilder path = new StringBuilder(apiScenario.getModulePath());
+            String modulePath = apiScenario.getModulePath();
+            StringBuilder path = new StringBuilder(modulePath == null ? "" : modulePath);
             List<String> pathLists = Arrays.asList(path.toString().split("/"));
-            pathLists.set(request.getLevel(), request.getName());
-            path.delete(0, path.length());
-            for (int i = 1; i < pathLists.size(); i++) {
-                path.append("/").append(pathLists.get(i));
+            if (pathLists.size() > request.getLevel()) {
+                pathLists.set(request.getLevel(), request.getName());
+                path.delete(0, path.length());
+                for (int i = 1; i < pathLists.size(); i++) {
+                    path.append("/").append(pathLists.get(i));
+                }
+                apiScenario.setModulePath(path.toString());
             }
-            apiScenario.setModulePath(path.toString());
         });
-
         batchUpdateApiScenario(apiScenarios);
 
         return apiScenarioModuleMapper.updateByPrimaryKeySelective(request);
@@ -231,13 +300,17 @@ public class ApiScenarioModuleService extends NodeTreeService<ApiScenarioModuleD
 
     public ApiScenarioModule getNewModule(String name, String projectId, int level) {
         ApiScenarioModule node = new ApiScenarioModule();
-        node.setCreateTime(System.currentTimeMillis());
-        node.setUpdateTime(System.currentTimeMillis());
-        node.setId(UUID.randomUUID().toString());
+        buildNewModule(node);
         node.setLevel(level);
         node.setName(name);
         node.setProjectId(projectId);
         return node;
+    }
+
+    public void buildNewModule(ApiScenarioModule node) {
+        node.setCreateTime(System.currentTimeMillis());
+        node.setUpdateTime(System.currentTimeMillis());
+        node.setId(UUID.randomUUID().toString());
     }
 
     public List<ApiScenarioModule> selectSameModule(ApiScenarioModule node) {
@@ -324,4 +397,71 @@ public class ApiScenarioModuleService extends NodeTreeService<ApiScenarioModuleD
         sqlSession.flushStatements();
     }
 
+    public String getLogDetails(List<String> ids) {
+        ApiScenarioModuleExample example = new ApiScenarioModuleExample();
+        example.createCriteria().andIdIn(ids);
+        List<ApiScenarioModule> nodes = apiScenarioModuleMapper.selectByExample(example);
+        if (org.apache.commons.collections.CollectionUtils.isNotEmpty(nodes)) {
+            List<String> names = nodes.stream().map(ApiScenarioModule::getName).collect(Collectors.toList());
+            OperatingLogDetails details = new OperatingLogDetails(JSON.toJSONString(ids), nodes.get(0).getProjectId(), String.join(",", names), nodes.get(0).getCreateUser(), new LinkedList<>());
+            return JSON.toJSONString(details);
+        }
+        return null;
+    }
+
+    public String getLogDetails(ApiScenarioModule node) {
+        ApiScenarioModule module = null;
+        if (StringUtils.isNotEmpty(node.getId())) {
+            module = apiScenarioModuleMapper.selectByPrimaryKey(node.getId());
+        }
+        if (module == null && StringUtils.isNotEmpty(node.getName())) {
+            ApiScenarioModuleExample example = new ApiScenarioModuleExample();
+            ApiScenarioModuleExample.Criteria criteria = example.createCriteria();
+            criteria.andNameEqualTo(node.getName()).andProjectIdEqualTo(node.getProjectId());
+            if (StringUtils.isNotEmpty(node.getParentId())) {
+                criteria.andParentIdEqualTo(node.getParentId());
+            } else {
+                criteria.andParentIdIsNull();
+            }
+            if (StringUtils.isNotEmpty(node.getId())) {
+                criteria.andIdNotEqualTo(node.getId());
+            }
+            List<ApiScenarioModule> list = apiScenarioModuleMapper.selectByExample(example);
+            if (org.apache.commons.collections.CollectionUtils.isNotEmpty(list)) {
+                module = list.get(0);
+            }
+        }
+        if (module != null) {
+            List<DetailColumn> columns = ReflexObjectUtil.getColumns(module, ModuleReference.moduleColumns);
+            OperatingLogDetails details = new OperatingLogDetails(JSON.toJSONString(module.getId()), module.getProjectId(), module.getCreateUser(), columns);
+            return JSON.toJSONString(details);
+        }
+        return null;
+    }
+
+    public long countById(String id) {
+        ApiScenarioModuleExample example = new ApiScenarioModuleExample();
+        example.createCriteria().andIdEqualTo(id);
+        return apiScenarioModuleMapper.countByExample(example);
+    }
+
+    public ApiScenarioModule getDefaultNode(String projectId) {
+        ApiScenarioModuleExample example = new ApiScenarioModuleExample();
+        example.createCriteria().andProjectIdEqualTo(projectId).andNameEqualTo("默认模块").andParentIdIsNull();
+        List<ApiScenarioModule> list = apiScenarioModuleMapper.selectByExample(example);
+        if (CollectionUtils.isEmpty(list)) {
+            ApiScenarioModule record = new ApiScenarioModule();
+            record.setId(UUID.randomUUID().toString());
+            record.setName("默认模块");
+            record.setPos(1.0);
+            record.setLevel(1);
+            record.setCreateTime(System.currentTimeMillis());
+            record.setUpdateTime(System.currentTimeMillis());
+            record.setProjectId(projectId);
+            apiScenarioModuleMapper.insert(record);
+            return  record;
+        }else {
+            return list.get(0);
+        }
+    }
 }

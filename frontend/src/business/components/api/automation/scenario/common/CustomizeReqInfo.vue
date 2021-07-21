@@ -1,7 +1,7 @@
 <template>
   <div>
     <div v-if="request.protocol === 'HTTP'">
-      <el-input :placeholder="$t('api_test.definition.request.path_all_info')" v-if="request.url" v-model="request.url"
+      <el-input :placeholder="$t('api_test.definition.request.path_all_info')" v-if="request.url || isCustomizeReq" v-model="request.url"
                 style="width: 85%;margin-top: 10px" size="small" @blur="urlChange">
         <el-select v-model="request.method" slot="prepend" style="width: 100px" size="small">
           <el-option v-for="item in reqOptions" :key="item.id" :label="item.label" :value="item.id"/>
@@ -13,6 +13,7 @@
           <el-option v-for="item in reqOptions" :key="item.id" :label="item.label" :value="item.id"/>
         </el-select>
       </el-input>
+      <el-checkbox v-if="isCustomizeReq" class="is-ref-environment" v-model="request.isRefEnvironment">{{ $t('api_test.request.refer_to_environment') }}</el-checkbox>
     </div>
 
     <div v-if="request.protocol === 'TCP' && isCustomizeReq">
@@ -44,21 +45,50 @@ export default {
   data() {
     return {
       reqOptions: REQ_METHOD,
+      isUrl: false,
+    }
+  },
+  mounted() {
+    if (this.isCustomizeReq) {
+      if (this.request.isRefEnvironment === undefined || this.request.isRefEnvironment === null) {
+        // 兼容旧数据
+        if (this.request.url) {
+          this.$set(this.request, 'isRefEnvironment', false);
+        } else {
+          this.$set(this.request, 'isRefEnvironment', true);
+        }
+      }
+      // url和path设置成一样，根据是否引用环境判断用哪个
+      if (this.request.url) {
+        this.$set(this.request, 'path', this.request.url);
+
+      } else {
+        this.$set(this.request, 'url', this.request.path);
+
+      }
     }
   },
   methods: {
     pathChange() {
+      this.isUrl = false;
       if (!this.request.path || this.request.path.indexOf('?') === -1) return;
       let url = this.getURL(this.addProtocol(this.request.path));
-      if (url) {
+      if (url && this.isUrl) {
         this.request.path = decodeURIComponent(this.request.path.substr(0, this.request.path.indexOf("?")));
       }
     },
     urlChange() {
+      this.isUrl = false;
+      if (this.isCustomizeReq) {
+        this.request.path = this.request.url;
+      }
       if (!this.request.url || this.request.url.indexOf('?') === -1) return;
       let url = this.getURL(this.addProtocol(this.request.url));
       if (url) {
-        this.request.url = decodeURIComponent(this.request.url.substr(0, this.request.url.indexOf("?")));
+        let paramUrl = this.request.url.substr(this.request.url.indexOf("?") + 1);
+        if (paramUrl && this.isUrl) {
+          this.request.url = decodeURIComponent(this.request.url.substr(0, this.request.url.indexOf("?")));
+        }
       }
     },
     addProtocol(url) {
@@ -74,6 +104,7 @@ export default {
         let url = new URL(urlStr);
         url.searchParams.forEach((value, key) => {
           if (key && value) {
+            this.isUrl = true;
             this.request.arguments.splice(0, 0, new KeyValue({name: key, required: false, value: value}));
           }
         });
@@ -87,7 +118,11 @@ export default {
 </script>
 
 <style scoped>
-  .server-input {
-    width: 50%;
-  }
+.server-input {
+  width: 50%;
+}
+
+.is-ref-environment {
+  margin-left: 15px;
+}
 </style>
